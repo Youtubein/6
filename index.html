@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Password Protected Page</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(45deg, #0a0a0a, #3a4452);
+            overflow: hidden;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            width: 400px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 1s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-50px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h2 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2em;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .input-group {
+            position: relative;
+            margin-bottom: 30px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 25px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: white;
+            font-size: 18px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 25px;
+            background: linear-gradient(45deg, #ff6b6b, #ff8e53);
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: linear-gradient(45deg, #ff8e53, #ff6b6b);
+            transform: scale(1.05);
+        }
+
+        button:disabled {
+            background: rgba(255, 255, 255, 0.2);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .error, .success {
+            text-align: center;
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .error {
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff4444;
+        }
+
+        .success {
+            background: rgba(0, 255, 0, 0.2);
+            color: #00ff00;
+        }
+
+        .strength-meter {
+            height: 5px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+
+        .strength-fill {
+            height: 100%;
+            width: 0;
+            transition: width 0.5s ease, background 0.5s ease;
+        }
+
+        .attempts-info {
+            color: white;
+            text-align: center;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            animation: float 10s infinite;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0); opacity: 0.5; }
+            50% { opacity: 0.2; }
+            100% { transform: translateY(-100vh); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="particles" id="particles"></div>
+    <div class="container">
+        <h2>Secure Login</h2>
+        <div class="input-group">
+            <input type="password" id="password" placeholder="Enter Password" autocomplete="off">
+            <span class="toggle-password" id="togglePassword">👁️</span>
+            <div class="strength-meter">
+                <div class="strength-fill" id="strengthFill"></div>
+            </div>
+        </div>
+        <button id="submitBtn">Login</button>
+        <div class="attempts-info" id="attemptsInfo"></div>
+        <div class="error" id="errorMsg"></div>
+        <div class="success" id="successMsg">Welcome! Access granted.</div>
+    </div>
+
+    <script>
+        const passwordInput = document.getElementById('password');
+        const togglePassword = document.getElementById('togglePassword');
+        const submitBtn = document.getElementById('submitBtn');
+        const errorMsg = document.getElementById('errorMsg');
+        const successMsg = document.getElementById('successMsg');
+        const strengthFill = document.getElementById('strengthFill');
+        const attemptsInfo = document.getElementById('attemptsInfo');
+        const particlesContainer = document.getElementById('particles');
+
+        const correctPassword = "27";
+        let attempts = 0;
+        const maxAttempts = 5;
+        let isLocked = false;
+
+        // Password Strength Indicator
+        function checkPasswordStrength(password) {
+            let strength = 0;
+            if (password.length > 8) strength += 25;
+            if (/[A-Z]/.test(password)) strength += 25;
+            if (/[0-9]/.test(password)) strength += 25;
+            if (/[^A-Za-z0-9]/.test(password)) strength += 25;
+
+            strengthFill.style.width = `${strength}%`;
+            strengthFill.style.background = 
+                strength <= 25 ? '#ff4444' :
+                strength <= 50 ? '#ffbb33' :
+                strength <= 75 ? '#00C851' : '#007E33';
+        }
+
+        // Show/Hide Password
+        togglePassword.addEventListener('click', () => {
+            const type = passwordInput.type === 'password' ? 'text' : 'password';
+            passwordInput.type = type;
+            togglePassword.textContent = type === 'password' ? '👁️' : '🙈';
+        });
+
+        // Update attempts info
+        function updateAttemptsInfo() {
+            if (!isLocked) {
+                attemptsInfo.textContent = `Attempts left: ${maxAttempts - attempts}`;
+            } else {
+                attemptsInfo.textContent = 'Account locked. Wait 5 seconds...';
+            }
+        }
+
+        // Check Password with 5 attempts and 5 second lockout
+        function checkPassword() {
+            if (isLocked) {
+                showError('Account locked. Please wait 5 seconds.');
+                return;
+            }
+
+            const password = passwordInput.value;
+            if (password === correctPassword) {
+                successMsg.style.display = 'block';
+                errorMsg.style.display = 'none';
+                sessionStorage.setItem('isLoggedIn', 'true');
+                setTimeout(() => {
+                    window.location.href = 'welcome.html';
+                }, 1000);
+            } else {
+                attempts++;
+                if (attempts >= maxAttempts) {
+                    isLocked = true;
+                    showError('Account locked. Try again in 5 seconds.');
+                    submitBtn.disabled = true;
+                    updateAttemptsInfo();
+                    setTimeout(() => {
+                        isLocked = false;
+                        attempts = 0;
+                        submitBtn.disabled = false;
+                        errorMsg.style.display = 'none';
+                        updateAttemptsInfo();
+                    }, 5000); // 5 seconds lockout
+                } else {
+                    showError(`Incorrect password. ${maxAttempts - attempts} attempts left.`);
+                    updateAttemptsInfo();
+                }
+            }
+        }
+
+        // Animated Background Particles
+        function createParticles() {
+            for (let i = 0; i < 50; i++) {
+                const particle = document.createElement('div');
+                particle.classList.add('particle');
+                particle.style.width = `${Math.random() * 5 + 2}px`;
+                particle.style.height = particle.style.width;
+                particle.style.left = `${Math.random() * 100}vw`;
+                particle.style.animationDelay = `${Math.random() * 10}s`;
+                particlesContainer.appendChild(particle);
+            }
+        }
+
+        // Error/Success Feedback
+        function showError(message) {
+            errorMsg.textContent = message;
+            errorMsg.style.display = 'block';
+            successMsg.style.display = 'none';
+        }
+
+        // Caps Lock Detection
+        passwordInput.addEventListener('keyup', (e) => {
+            if (e.getModifierState('CapsLock')) {
+                showError('Caps Lock is ON');
+            } else if (!e.key.toLowerCase().includes('enter')) {
+                errorMsg.style.display = 'none';
+            }
+            checkPasswordStrength(passwordInput.value);
+        });
+
+        // Enter Key Support
+        passwordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                checkPassword();
+            }
+        });
+
+        submitBtn.addEventListener('click', checkPassword);
+
+        // Session Storage Check
+        if (sessionStorage.getItem('isLoggedIn') === 'true') {
+            successMsg.style.display = 'block';
+            setTimeout(() => {
+                window.location.href = 'welcome.html';
+            }, 1000);
+        }
+
+        // Initialize
+        createParticles();
+        updateAttemptsInfo();
+    </script>
+</body>
+</html>
